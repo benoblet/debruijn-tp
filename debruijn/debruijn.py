@@ -107,8 +107,18 @@ def build_kmer_dict(fastq_file, kmer_size):
 
 
 def build_graph(kmer_dict):
-    pass
-
+    print(kmer_dict)
+    my_graph = nx.DiGraph()
+    for kmer in kmer_dict:
+    	print(f"current kmer : {kmer}")
+    	prefix = kmer[:-1]
+    	print(f"prefixe : {prefix}")
+    	suffix = kmer[1:]
+    	print(f"suffixe : {suffix}")
+    	
+    	print(f"edge value : {kmer_dict[kmer]}")
+    	my_graph.add_edge(prefix, suffix, weight = kmer_dict[kmer])
+    return my_graph
 
 def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
     pass
@@ -201,7 +211,6 @@ def main():
     """
     # Get arguments
     args = get_arguments()
-
     	    
     # Fonctions de dessin du graphe
     # A decommenter si vous souhaitez visualiser un petit 
@@ -214,12 +223,6 @@ def main():
     #     save_graph(graph, args.graph_file)
 
 
-#if __name__ == '__main__':
-#    main()
-
-
-
-
 #==============================================================
 # Bene tests (Chabname's idea)
 #==============================================================
@@ -228,5 +231,14 @@ def main_test():
     kmer_reader = cut_kmer("TCAGA", 3)
     for element in kmer_reader:
         print(element)
+    
+    args = get_arguments()
+    
+    ledico = build_kmer_dict(args.fastq_file, args.kmer_size)
+    
+    graph = build_graph(ledico)
 
-# main_test()
+
+if __name__ == '__main__':
+#    main()
+    main_test()
