@@ -24,12 +24,12 @@ random.seed(9001)
 from random import randint
 import statistics
 
-__author__ = "Your Name"
-__copyright__ = "Universite Paris Diderot"
-__credits__ = ["Your Name"]
+__author__ = "Benedicte Noblet"
+__copyright__ = "Universite Paris Diderot - Universite de Paris"
+__credits__ = ["Benedicte Noblet"]
 __license__ = "GPL"
 __version__ = "1.0.0"
-__maintainer__ = "Your Name"
+__maintainer__ = "Benedicte Noblet"
 __email__ = "your@email.fr"
 __status__ = "Developpement"
 
@@ -49,12 +49,12 @@ def isfile(path):
 
 def get_arguments():
     """Retrieves the arguments of the program.
-      Returns: An object that contains the arguments
+      Returns:
+      	An object that contains the arguments
     """
     # Parsing arguments
-    parser = argparse.ArgumentParser(description=__doc__, usage=
-                                     "{0} -h"
-                                     .format(sys.argv[0]))
+    parser = argparse.ArgumentParser(description=__doc__,
+    				      usage="{0} -h".format(sys.argv[0]))
     parser.add_argument('-i', dest='fastq_file', type=isfile,
                         required=True, help="Fastq file")
     parser.add_argument('-k', dest='kmer_size', type=int,
@@ -68,15 +68,42 @@ def get_arguments():
 
 
 def read_fastq(fastq_file):
-    pass
+    """Read fasta file and get sequences one at a time.
+    
+    Arguments:
+    fastq_file: string
+        path to file
+    Returns:
+    	An iterator operating on nucleotide sequences
+    """
+    with open(fastq_file, 'r') as myfile:
+        for line in myfile:
+            line=next(myfile)
+            yield line.strip()
+            line=next(myfile)
+            line=next(myfile)
 
 
 def cut_kmer(read, kmer_size):
-    pass
+    for i in range(len(read)-kmer_size+1):
+        yield read[i:i+kmer_size]
 
 
 def build_kmer_dict(fastq_file, kmer_size):
-    pass
+    kmers_me = {}
+    sequences = read_fastq(fastq_file)
+    for read in sequences:
+    	#print(f"current read : {read}")
+    	kmers = cut_kmer(read, kmer_size)
+    	for kmer in kmers:
+    	    #print(f"kmer : {kmer}")
+    	    if kmer in kmers_me:
+    	    	kmers_me[kmer] += 1
+    	    	#print("added")
+    	    else:
+    	    	kmers_me[kmer] = 1
+    	    	#print("created")
+    return kmers_me
 
 
 def build_graph(kmer_dict):
@@ -86,6 +113,8 @@ def build_graph(kmer_dict):
 def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
     pass
 
+
+
 def std(data):
     pass
 
@@ -94,29 +123,38 @@ def select_best_path(graph, path_list, path_length, weight_avg_list,
                      delete_entry_node=False, delete_sink_node=False):
     pass
 
+
 def path_average_weight(graph, path):
     pass
+
 
 def solve_bubble(graph, ancestor_node, descendant_node):
     pass
 
+
 def simplify_bubbles(graph):
     pass
+
 
 def solve_entry_tips(graph, starting_nodes):
     pass
 
+
 def solve_out_tips(graph, ending_nodes):
     pass
+
 
 def get_starting_nodes(graph):
     pass
 
+
 def get_sink_nodes(graph):
     pass
 
+
 def get_contigs(graph, starting_nodes, ending_nodes):
     pass
+
 
 def save_contigs(contigs_list, output_file):
     pass
@@ -125,6 +163,7 @@ def save_contigs(contigs_list, output_file):
 def fill(text, width=80):
     """Split text with a line return to respect fasta format"""
     return os.linesep.join(text[i:i+width] for i in range(0, len(text), width))
+
 
 def draw_graph(graph, graphimg_file):
     """Draw the graph
@@ -163,6 +202,7 @@ def main():
     # Get arguments
     args = get_arguments()
 
+    	    
     # Fonctions de dessin du graphe
     # A decommenter si vous souhaitez visualiser un petit 
     # graphe
@@ -174,5 +214,19 @@ def main():
     #     save_graph(graph, args.graph_file)
 
 
-if __name__ == '__main__':
-    main()
+#if __name__ == '__main__':
+#    main()
+
+
+
+
+#==============================================================
+# Bene tests (Chabname's idea)
+#==============================================================
+    
+def main_test():
+    kmer_reader = cut_kmer("TCAGA", 3)
+    for element in kmer_reader:
+        print(element)
+
+# main_test()
