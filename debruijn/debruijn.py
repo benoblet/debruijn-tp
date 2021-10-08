@@ -69,12 +69,16 @@ def get_arguments():
 
 def read_fastq(fastq_file):
     """Read fasta file and get sequences one at a time.
-    
-    Arguments:
+
+    Parameters
+    ----------
     fastq_file: string
-        path to file
-    Returns:
-    	An iterator operating on nucleotide sequences
+        Path to fastq file, third line with identifier or not
+
+    Returns
+    -------
+    iterator
+        An iterator operating on nucleotide sequences
     """
     with open(fastq_file, 'r') as myfile:
         for line in myfile:
@@ -85,28 +89,73 @@ def read_fastq(fastq_file):
 
 
 def cut_kmer(read, kmer_size):
+    """Cut string in substrings of fixed length.
+
+    Parameters
+    ----------
+    read: string
+        Sequence read on Illumina or other platform
+    kmer_size: integer
+        Length k for k-mer (substring)
+
+    Returns
+    -------
+    iterator
+        An iterator operating over all substrings
+        of length k in read sequence.
+    """
     for i in range(len(read)-kmer_size+1):
         yield read[i:i+kmer_size]
 
 
 def build_kmer_dict(fastq_file, kmer_size):
+    """Create dictionnary of all read kmers.
+
+    Parameters
+    ----------
+    fastq_file: string
+        Path to fastq file
+    kmer_size: integer
+        Length k for k-mer (substring)
+
+    Returns
+    -------
+    dictionnary
+        A dictionnary containing all found kmers
+        as keys and number of corresponding kmer
+        as dictionnary value.
+    """
     kmers_me = {}
     sequences = read_fastq(fastq_file)
     for read in sequences:
     	#print(f"current read : {read}")
-    	kmers = cut_kmer(read, kmer_size)
-    	for kmer in kmers:
+        kmers = cut_kmer(read, kmer_size)
+        for kmer in kmers:
     	    #print(f"kmer : {kmer}")
     	    if kmer in kmers_me:
-    	    	kmers_me[kmer] += 1
-    	    	#print("added")
+    	        kmers_me[kmer] += 1
+    	        #print("added")
     	    else:
-    	    	kmers_me[kmer] = 1
-    	    	#print("created")
+    	        kmers_me[kmer] = 1
+    	        #print("created")
     return kmers_me
 
 
 def build_graph(kmer_dict):
+    """Build oriented and weighted DeBruijn graph.
+
+    Parameters
+    ----------
+    kmer_dict: integer
+        Dictionnary return by build_kmer_dict()
+
+    Returns
+    -------
+    networkx DiGraph
+        Graph with suffixes and prefixes of length
+        k-1 as nodes linked by edges weighted with
+        number of found sequences.
+    """
     print(kmer_dict)
     my_graph = nx.DiGraph()
     for kmer in kmer_dict:
