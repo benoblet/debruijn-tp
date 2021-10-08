@@ -23,6 +23,7 @@ import random
 random.seed(9001)
 from random import randint
 import statistics
+from itertools import product
 
 __author__ = "Benedicte Noblet"
 __copyright__ = "Universite Paris Diderot - Universite de Paris"
@@ -35,8 +36,10 @@ __status__ = "Developpement"
 
 def isfile(path):
     """Check if path is an existing file.
-      :Parameters:
-          path: Path to the file
+    Parameters
+    ----------
+    path: string
+        Path to the file
     """
     if not os.path.isfile(path):
         if os.path.isdir(path):
@@ -131,13 +134,13 @@ def build_kmer_dict(fastq_file, kmer_size):
     	#print(f"current read : {read}")
         kmers = cut_kmer(read, kmer_size)
         for kmer in kmers:
-    	    #print(f"kmer : {kmer}")
-    	    if kmer in kmers_me:
-    	        kmers_me[kmer] += 1
-    	        #print("added")
-    	    else:
-    	        kmers_me[kmer] = 1
-    	        #print("created")
+            #print(f"kmer : {kmer}")
+            if kmer in kmers_me:
+                kmers_me[kmer] += 1
+                #print("added")
+            else:
+                kmers_me[kmer] = 1
+                #print("created")
     return kmers_me
 
 
@@ -146,7 +149,7 @@ def build_graph(kmer_dict):
 
     Parameters
     ----------
-    kmer_dict: integer
+    kmer_dict: dictionnary
         Dictionnary return by build_kmer_dict()
 
     Returns
@@ -156,23 +159,23 @@ def build_graph(kmer_dict):
         k-1 as nodes linked by edges weighted with
         number of found sequences.
     """
-    print(kmer_dict)
+    #print(kmer_dict)
     my_graph = nx.DiGraph()
     for kmer in kmer_dict:
-    	print(f"current kmer : {kmer}")
-    	prefix = kmer[:-1]
-    	print(f"prefixe : {prefix}")
-    	suffix = kmer[1:]
-    	print(f"suffixe : {suffix}")
-    	
-    	print(f"edge value : {kmer_dict[kmer]}")
-    	my_graph.add_edge(prefix, suffix, weight = kmer_dict[kmer])
+    	#print(f"current kmer : {kmer}")
+        prefix = kmer[:-1]
+    	#print(f"prefixe : {prefix}")
+        suffix = kmer[1:]
+    	#print(f"suffixe : {suffix}")
+
+    	#print(f"edge value : {kmer_dict[kmer]}")
+        my_graph.add_edge(prefix, suffix, weight = kmer_dict[kmer])
     return my_graph
+
 
 def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
     pass
-
-
+    
 
 def std(data):
     pass
@@ -204,19 +207,108 @@ def solve_out_tips(graph, ending_nodes):
 
 
 def get_starting_nodes(graph):
-    pass
+    """Find starting nodes.
+
+    Parameters
+    ----------
+    graph: networkx DiGraph
+        graph returned by build_graph() function.
+
+    Returns
+    -------
+    List
+        A list of all nodes without any predecessor.
+    """
+    starters = []
+    for node in graph.nodes:
+        predecessors = list(graph.predecessors(node))
+        if len(predecessors) == 0:
+            starters.append(node)
+    return starters
 
 
 def get_sink_nodes(graph):
-    pass
+    """Find terminal nodes.
+
+    Parameters
+    ----------
+    graph: networkx DiGraph
+        graph returned by build_graph() function.
+
+    Returns
+    -------
+    List
+        A list of all nodes without any successor.
+    """
+    stopsones = []
+    for node in graph.nodes:
+        successors = list(graph.successors(node))
+        if len(successors) == 0:
+            stopsones.append(node)
+    return stopsones
 
 
 def get_contigs(graph, starting_nodes, ending_nodes):
-    pass
+    """Find all contigs sequences.
+    A contig is defined as a know
+
+    Parameters
+    ----------
+    graph: networkx DiGraph
+        Graph returned by build_graph() function.
+    starting_nodes: list
+        List of all nodes that have no predecessor.
+    ending_nodes: list
+        List of all nodes that have no successor.
+
+    Returns
+    -------
+    List
+        List of tuples (contig, length of contig).
+    """
+    my_contigs = []
+    for starting, ending in product(starting_nodes, ending_nodes):
+        #print(f"outer loop : {starting}, {ending}")
+        #print(f"has path : {nx.has_path(graph, starting, ending)}")
+        if not nx.has_path(graph, starting, ending):
+            continue
+        else:
+            for singlepath in nx.all_simple_paths(graph, starting, ending):
+                currentig = singlepath[0]
+                for follower in singlepath[1:]:
+                    currentig += follower[-1]
+                my_contigs.append((currentig, len(currentig)))
+    return my_contigs
 
 
 def save_contigs(contigs_list, output_file):
-    pass
+    """Saved contigs in fasta format file.
+
+    Exact format:
+    >contig_1 len=longueur du contig
+    Sequence..
+    >contig_2 len=longueur du contig
+    Sequence.
+
+    Parameters
+    ----------
+    contigs_list: list
+        List of tuple (contig sequence, length) as
+        returned by get_contigs() function.
+    output_file: string
+        Filepath for output file.
+
+    Returns
+    -------
+    None
+        List of tuples (contig, length of contig).
+    """
+    with open(output_file, 'w') as file_out:
+        for i, contig_infos in enumerate(contigs_list):
+            sequence = contig_infos[0]
+            length = contig_infos[1]
+            file_out.write(f">contig_{i} len={length}\n")  # starts at 0 to fit predefined pytest
+            file_out.write(f"{fill(sequence)}\n")
 
 
 def fill(text, width=80):
@@ -286,6 +378,17 @@ def main_test():
     ledico = build_kmer_dict(args.fastq_file, args.kmer_size)
     
     graph = build_graph(ledico)
+    
+    print("fetching start and ending nodes")
+    begins = get_starting_nodes(graph)
+    print(f"{len(begins)} noeuds de debut")
+    endings = get_sink_nodes(graph)
+    print(f"{len(endings)} noeuds de fin")
+    
+    print("calling get_contigs")
+    my_contigs = get_contigs(graph, begins, endings)
+    print("...saving...")
+    save_contigs(my_contigs, args.output_file)
 
 
 if __name__ == '__main__':
