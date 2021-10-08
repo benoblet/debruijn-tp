@@ -1,0 +1,13 @@
+name: debruijn-tp
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - spyder
+  # required for TP
+  - networkx
+  - pytest
+  - pylint
+  - pytest-cov
