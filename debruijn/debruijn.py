@@ -90,10 +90,11 @@ def read_fastq(fastq_file):
     """
     with open(fastq_file, 'r') as myfile:
         for line in myfile:
-            line=next(myfile)
+            # pylint error: see github.com/PyCQA/pylint/issues/1999
+            line = next(myfile, None)  # to prevent pylint message
             yield line.strip()
-            line=next(myfile)
-            line=next(myfile)
+            line = next(myfile, None)
+            line = next(myfile, None)
 
 
 def cut_kmer(read, kmer_size):
@@ -187,7 +188,7 @@ def remove_paths(graph, path_list,
     graph: networkx weighted DiGraph
         A network built by a function such as upper
         build_graph() function.
-    path_list : list
+    path_list: list
         A list of tuple with ordered nodes of each path
         we want to delete from graph.
     delete_entry_node, delete_sink_node: booleans
@@ -231,12 +232,99 @@ def remove_paths(graph, path_list,
 
 
 def std(data):
-    pass
+    """Compute standard deviation of data.
+    A call for stdev( ) function from statistic library.
+
+    Parameters
+    ----------
+    data: list
+        All float values to study for sample spread calculation.
+    Returns
+    -------
+    float
+        Computed standard deviation for values given in data.
+    """
+    if len(data) == 1:
+        # I met an issue in simplify_bubbles
+        # statistics.variance needs at least two values
+        return 0
+
+    return statistics.stdev(data)
 
 
 def select_best_path(graph, path_list, path_length, weight_avg_list,
                      delete_entry_node=False, delete_sink_node=False):
-    pass
+    """Identify longest or more frequent path among concurrent ones.
+
+    Paths are parallel ones (i.e. starting and ending at same nodes)
+    or competing ones (i.e. starting or ending at a same node).
+    Here, we suppose that longest path or more present ones are more
+    likely to occur in biological systems when performing reads
+    assembly.
+
+    Parameters
+    ----------
+    graph: networkx weighted DiGraph
+        A network built by a function such as upper
+        build_graph() function.
+    path_list: list
+        A list of lists or tuples with ordered nodes of each path.
+        to study to compare.
+    path_length: list
+        A list of ordered path length values. They must fit path_list
+        order.
+    weight_avg_list: list
+        A list of ordered path average weight values for each path
+        in path_list. They must follow same order as path_list.
+    delete_entry_node, delete_sink_node: booleans
+        Value to set if starting (or ending respectively)
+        node is to be kept in graph. See above: remove_path( ).
+
+    Returns
+    -------
+    graph: networkx weighted DiGraph
+        Input graph lacking redondant paths (nodes and/or edges) that
+        where not the best found solution among existing ones.
+    """
+    # After simplify_bubbles's issue (10/10/2021 11:10 pm)
+    # Do we have several paths in input path_list ?
+    if len(path_list) <= 1:
+        return graph
+
+    # Do we have a more frequent/probable one ?
+    weight_std = std(weight_avg_list)
+    if weight_std > 0:
+        if len(path_list) != len(weight_avg_list):
+            sys.exit("Lists of paths and average weights do not seem" \
+                     " to match. See select_best_path( ) function")
+        maximum = max(weight_avg_list)
+        for rank, path in enumerate(path_list):
+            if weight_avg_list[rank] == maximum:
+                best_one = path
+                break
+    else:
+        # Do we have a longer one ?
+        length_std = std(path_length)
+        if length_std > 0:
+            if len(path_list) != len(path_length):
+                sys.exit("Lists of paths and associated lengths do" \
+                         " not seem to match. See select_best_path" \
+                         "( ) function")
+            maximum = max(path_length)
+            for rank, path in enumerate(path_list):
+                if path_length[rank] == maximum:
+                    best_one = path
+                    break
+        else:
+            # Let's pick up one randomly, start and stop includ
+            best_one = path_list[randint(0, len(path_list))]
+
+    # remove chosen_one from list and delete all others
+    path_list.remove(best_one)
+    graph = remove_paths(graph, path_list,
+                         delete_entry_node, delete_sink_node)
+
+    return graph
 
 
 def path_average_weight(graph, path):
@@ -249,7 +337,7 @@ def path_average_weight(graph, path):
     graph: networkx weighted DiGraph
         A network built by a function such as upper
         build_graph() function.
-    path : tuple(graph, starting, ending)
+    path: tuple(graph, starting, ending)
         An item of the generated list by nx.all_simple_path
         containing all available paths between starting and
         ending (sink) nodes.
@@ -265,19 +353,95 @@ def path_average_weight(graph, path):
 
 
 def solve_bubble(graph, ancestor_node, descendant_node):
-    pass
+    """Remove given paths from a graph.
+
+    Parameters
+    ----------
+    graph: networkx weighted DiGraph
+        A network built by a function such as upper
+        build_graph() function.
+    ancestor_node, descendant_node: node
+        Nodes label
+
+    Returns
+    -------
+    graph: networkx weighted DiGraph
+        Input graph with only one path between ancestor and
+        descendant node.
+    """
+    all_paths = []
+    all_length = []
+    all_avgweit = []
+    for path in nx.all_simple_paths(graph,
+                                    ancestor_node, descendant_node):
+        all_paths.append(path)
+        all_length.append(len(path))
+        all_avgweit.append(path_average_weight(graph, path))
+    # modify graph based on above lists
+    graph = select_best_path(graph, all_paths, all_length, all_avgweit,
+                             delete_entry_node=False,
+                             delete_sink_node=False)
+    return graph
 
 
 def simplify_bubbles(graph):
-    pass
+    """Remove multiple paths from a graph.
+    See function select_best_path for more details on made choices.
+
+    Parameters
+    ----------
+    graph: networkx weighted DiGraph
+        A network built by a function such as upper
+        build_graph() function.
+
+    Returns
+    -------
+    graph: networkx weighted DiGraph
+        Input graph with only no multiple paths.
+    """
+    bubble = False
+
+    # Translation of algorithm given by teacher (written in French)
+    for onenode in graph.nodes:
+        if onenode not in graph.nodes:
+            # we deleted it previously, no need to study it anymore
+            continue
+        # let's find all previous nodes linked by one edge
+        predecessors = list(graph.predecessors(onenode))
+        if len(predecessors) > 1:
+            # either they are linked by a same node (i.e. bubble)
+            # or they have different start node (competing paths).
+            for i in range(len(predecessors)-1):
+                one = predecessors[i]
+                for j in range(i, len(predecessors)):
+                    two = predecessors[j]
+                    common = nx.lowest_common_ancestor(graph, one, two)
+                    if common:
+                        # damn, we've got bubble(s)
+                        bubble = True
+                        # we need to study it before going on
+                        graph = simplify_bubbles(solve_bubble(graph, common, onenode))
+                        #break
+                # recursion error encountered when below lines outside loop:
+                # https://stackoverflow.com/questions/52873067/recursionerror \
+                # -maximum-recursion-depth-exceeded-in-comparison
+                #if bubble:
+                    # we call for solve_bubble to remove found existing bubble(s),
+                    # and gives what the result to current function to find if
+                    # there is(are) remaining bubble(s) to simplify.
+                    
+
+    return graph
 
 
 def solve_entry_tips(graph, starting_nodes):
-    pass
+    # to remove pytest big error
+    return graph
 
 
 def solve_out_tips(graph, ending_nodes):
-    pass
+    # to remove pytest big error
+    return graph
 
 
 def get_starting_nodes(graph):
