@@ -13,17 +13,22 @@
 
 """Perform assembly based on debruijn graph."""
 
+# First, specific functions
+from operator import itemgetter
+from random import randint
+from itertools import product
+# Second, global packages (ordered following pylint remarks)
 import argparse
 import os
 import sys
-import networkx as nx
-import matplotlib
-from operator import itemgetter
 import random
-random.seed(9001)
-from random import randint
 import statistics
-from itertools import product
+import matplotlib
+# Third, global packages with nicknames
+import networkx as nx
+# Forth, peculiar points
+random.seed(9001)
+
 
 __author__ = "Benedicte Noblet"
 __copyright__ = "Universite Paris Diderot - Universite de Paris"
@@ -173,21 +178,90 @@ def build_graph(kmer_dict):
     return my_graph
 
 
-def remove_paths(graph, path_list, delete_entry_node, delete_sink_node):
-    pass
-    
+def remove_paths(graph, path_list,
+                 delete_entry_node, delete_sink_node):
+    """Remove given paths from a graph.
+
+    Parameters
+    ----------
+    graph: networkx weighted DiGraph
+        A network built by a function such as upper
+        build_graph() function.
+    path_list : list
+        A list of tuple with ordered nodes of each path
+        we want to delete from graph.
+    delete_entry_node, delete_sink_node: booleans
+        Value to set if starting (or ending respectively)
+        node is to be kept in graph.
+
+    Returns
+    -------
+    graph: networkx weighted DiGraph
+        Input graph lacking paths (nodes and/or edges)
+        from path_list.
+    """
+    # Store all nodes to prevent nodes used in several path
+    # from being removed and following "path" using them in
+    # path_list not being processed [deprecated comment]
+    toberemoved = []
+    for nodelist in path_list:
+        print(f"current nodelist: {nodelist}")
+
+        # test user wish for starting
+        if delete_entry_node:
+            print(f"first node to del: {nodelist[0]}")
+            toberemoved.append(nodelist[0])
+        # test user wish for ending
+        if delete_sink_node:
+            print(f"last node to del: {nodelist[-1]}")
+            toberemoved.append(nodelist[-1])
+
+        # identify central nodes if any
+        if len(nodelist) > 2:
+            print("Existing central nodes")
+            for centralnode in nodelist[1:len(nodelist)-1]: # [1:-1] works also
+                toberemoved.append(centralnode)
+
+    # some cleaning of list
+    toberemoved = list(set(toberemoved))
+    # removal of remaining nodes
+    graph.remove_nodes_from(toberemoved)
+
+    return graph
+
 
 def std(data):
     pass
 
 
-def select_best_path(graph, path_list, path_length, weight_avg_list, 
+def select_best_path(graph, path_list, path_length, weight_avg_list,
                      delete_entry_node=False, delete_sink_node=False):
     pass
 
 
 def path_average_weight(graph, path):
-    pass
+    """Compute weight average for a path.
+    The mean of weights allows to compare path of different
+    lengths.
+
+    Parameters
+    ----------
+    graph: networkx weighted DiGraph
+        A network built by a function such as upper
+        build_graph() function.
+    path : tuple(graph, starting, ending)
+        An item of the generated list by nx.all_simple_path
+        containing all available paths between starting and
+        ending (sink) nodes.
+
+    Returns
+    -------
+    float
+        Computed average weight value for edges of
+        defined path in function parameter.
+    """
+    # from TP subject, release available on 10/09/2021 3:00 pm
+    return statistics.mean([d["weight"] for (u, v, d) in graph.subgraph(path).edges(data=True)])
 
 
 def solve_bubble(graph, ancestor_node, descendant_node):
@@ -318,7 +392,7 @@ def fill(text, width=80):
 
 def draw_graph(graph, graphimg_file):
     """Draw the graph
-    """                                    
+    """
     fig, ax = plt.subplots()
     elarge = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] > 3]
     #print(elarge)
@@ -329,7 +403,7 @@ def draw_graph(graph, graphimg_file):
     pos = nx.random_layout(graph)
     nx.draw_networkx_nodes(graph, pos, node_size=6)
     nx.draw_networkx_edges(graph, pos, edgelist=elarge, width=6)
-    nx.draw_networkx_edges(graph, pos, edgelist=esmall, width=6, alpha=0.5, 
+    nx.draw_networkx_edges(graph, pos, edgelist=esmall, width=6, alpha=0.5,
                            edge_color='b', style='dashed')
     #nx.draw_networkx(graph, pos, node_size=10, with_labels=False)
     # save image
@@ -340,7 +414,7 @@ def save_graph(graph, graph_file):
     """Save the graph with pickle
     """
     with open(graph_file, "wt") as save:
-            pickle.dump(graph, save)
+        pickle.dump(graph, save)
 
 
 #==============================================================
@@ -352,9 +426,9 @@ def main():
     """
     # Get arguments
     args = get_arguments()
-    	    
+
     # Fonctions de dessin du graphe
-    # A decommenter si vous souhaitez visualiser un petit 
+    # A decommenter si vous souhaitez visualiser un petit
     # graphe
     # Plot the graph
     # if args.graphimg_file:
@@ -367,28 +441,50 @@ def main():
 #==============================================================
 # Bene tests (Chabname's idea)
 #==============================================================
-    
-def main_test():
-    kmer_reader = cut_kmer("TCAGA", 3)
-    for element in kmer_reader:
-        print(element)
-    
+
+def main_test(current=5):
+
+    if current == 1:
+        kmer_reader = cut_kmer("TCAGA", 3)
+        for element in kmer_reader:
+            print(element)
+        sys.exit()
+
     args = get_arguments()
-    
+
     ledico = build_kmer_dict(args.fastq_file, args.kmer_size)
-    
+
     graph = build_graph(ledico)
-    
-    print("fetching start and ending nodes")
+
+    if current == 2:
+        print("fetching start and ending nodes")
     begins = get_starting_nodes(graph)
-    print(f"{len(begins)} noeuds de debut")
     endings = get_sink_nodes(graph)
-    print(f"{len(endings)} noeuds de fin")
-    
-    print("calling get_contigs")
+
+    if current == 2:
+        print(f"{len(begins)} noeuds de debut")
+        print(f"{len(endings)} noeuds de fin")
+        print("calling get_contigs")
     my_contigs = get_contigs(graph, begins, endings)
-    print("...saving...")
-    save_contigs(my_contigs, args.output_file)
+
+    if current == 3:
+        print("...saving...")
+        save_contigs(my_contigs, args.output_file)
+
+    if current == 4:
+        print("computed average weight")
+        onepath = my_contigs[1]
+        print(f"my first contig : {onepath}")
+        onemean = path_average_weight(graph, onepath)
+        print(f"computed edges average : {onemean:.4f}")
+
+    if current == 5:
+        print("graph status before")
+        print(graph)
+        somepaths = list(product(begins[:5], endings[:5]))
+        print(f"{len(somepaths)} nodes to remove")
+        graph = remove_paths(graph, somepaths, True, True)
+        print(f"new graph: {graph}")
 
 
 if __name__ == '__main__':
