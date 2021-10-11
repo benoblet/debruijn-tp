@@ -209,20 +209,20 @@ def remove_paths(graph, path_list,
     # path_list not being processed [deprecated comment]
     toberemoved = []
     for nodelist in path_list:
-        print(f"current nodelist: {nodelist}")
+        #print(f"current nodelist: {nodelist}")
 
         # test user wish for starting
         if delete_entry_node:
-            print(f"first node to del: {nodelist[0]}")
+            #print(f"first node to del: {nodelist[0]}")
             toberemoved.append(nodelist[0])
         # test user wish for ending
         if delete_sink_node:
-            print(f"last node to del: {nodelist[-1]}")
+            #print(f"last node to del: {nodelist[-1]}")
             toberemoved.append(nodelist[-1])
 
         # identify central nodes if any
         if len(nodelist) > 2:
-            print("Existing central nodes")
+            #print("Existing central nodes")
             for centralnode in nodelist[1:len(nodelist)-1]: # [1:-1] works also
                 toberemoved.append(centralnode)
 
@@ -721,8 +721,11 @@ def main():
     # Get arguments
     args = get_arguments()
 
+    print("Building kmer dictionnary")
     ledico = build_kmer_dict(args.fastq_file, args.kmer_size)
+    print("Building graph...")
     graph = build_graph(ledico)
+    print("done")
 
     # Fonctions de dessin du graphe
     # A decommenter si vous souhaitez visualiser un petit
@@ -730,27 +733,36 @@ def main():
     # Plot the graph
     if args.graphimg_file:
         draw_graph(graph, args.graphimg_file)
-    # Save the graph in file
+        print("Graph image saved")
+    # Save the graph in file (does not work)
     if args.graph_file:
         save_graph(graph, args.graph_file)
+        print("Graph data saved")
 
     # Remove internal issues
     graph = simplify_bubbles(graph)
+    print("Bubbles removed")
 
     # Remove outer issues
     begins = get_starting_nodes(graph)
     endings = get_sink_nodes(graph)
+    print(f"{len(begins)} starts and {len(endings)} sink nodes found.")
 
     # Clean graph
-    graph = simplify_bubbles(graph)
+    print("Solving entry tips...")
     graph = solve_entry_tips(graph, begins)
+    print("Solving out tips...")
     graph = solve_out_tips(graph, endings)
+
     # Update lists
+    print("Performing lists updates")
     begins = get_starting_nodes(graph)
     endings = get_sink_nodes(graph)
+    print(f"{len(begins)} starts and {len(endings)} sink nodes found.")
 
     # Identify valid contig(s)
     my_contigs = get_contigs(graph, begins, endings)
+    print(f"{len(my_contigs)} contigs in sequenced reads")
     save_contigs(my_contigs, args.output_file)
 
 
@@ -843,5 +855,5 @@ def main_test(current=7):
 
 
 if __name__ == '__main__':
-#    main()
-    main_test()
+    main()
+    #main_test()

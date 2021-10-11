@@ -1,3 +1,23 @@
+# Installation
+Use conda and YAML file in binder to get handy environment:
+```python
+conda env create -f binder/debruijn-tp.yml
+conda activate debruijn-tp
+```
+
+# Notes regarding latest release (10/11/2021 10:00 pm CEST)
+- All wanted functions pass pylint test
+- Program operates in less than one minute for following command line
+```bash
+time python debruijn/debruijn.py -i data/eva71_plus_perfect.fq \
+                                 -o results/eva71_plus_perfect_contigs.fasta \
+                                 -f results/eva_plus_perfect_graph_before_cleaning.png
+```
+- Saving graph before simplifying it: PNG image not human readable
+- Saving data file with pickle didn't work (one trial, no more time)
+- Only 1 contig remains after treatments while more are expected, see data/eva71.fna
+
+
 # Assembleur basé sur les graphes de Debruijn
 
 Vous trouverez la description complète du TP [ici]( 
