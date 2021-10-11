@@ -400,36 +400,48 @@ def simplify_bubbles(graph):
         Input graph with only no multiple paths.
     """
     bubble = False
+    #print(f"graph nodes length: {len(graph.nodes)}")
 
     # Translation of algorithm given by teacher (written in French)
     for onenode in graph.nodes:
-        if onenode not in graph.nodes:
+        #print(f"current end node: {onenode}")
+        #if onenode not in graph.nodes:
+            #print("Node not found in current graph")
             # we deleted it previously, no need to study it anymore
-            continue
+            #continue
         # let's find all previous nodes linked by one edge
         predecessors = list(graph.predecessors(onenode))
+        #print(f"current end node has {len(predecessors)} predecessor(s).")
         if len(predecessors) > 1:
             # either they are linked by a same node (i.e. bubble)
             # or they have different start node (competing paths).
             for i in range(len(predecessors)-1):
                 one = predecessors[i]
-                for j in range(i, len(predecessors)):
+                #print(f"predecessor node one: {one}")
+                for j in range(i+1, len(predecessors)):
                     two = predecessors[j]
+                    #print(f"predecessor node two: {two}")
                     common = nx.lowest_common_ancestor(graph, one, two)
+                    #print(f"lowest common ancestor: {common}")
                     if common:
+                        #print("in if-common conditional block")
                         # damn, we've got bubble(s)
                         bubble = True
                         # we need to study it before going on
-                        graph = simplify_bubbles(solve_bubble(graph, common, onenode))
-                        #break
-                # recursion error encountered when below lines outside loop:
-                # https://stackoverflow.com/questions/52873067/recursionerror \
-                # -maximum-recursion-depth-exceeded-in-comparison
-                #if bubble:
-                    # we call for solve_bubble to remove found existing bubble(s),
-                    # and gives what the result to current function to find if
-                    # there is(are) remaining bubble(s) to simplify.
-                    
+                        break
+            if bubble:
+                break
+        if bubble:
+            break
+
+    if bubble:
+        #print("in if-bubble conditional block")
+        #print(graph)
+        #print(f"common ancestor {common} - downstream {onenode}")
+        # we call for solve_bubble to remove found existing bubble(s),
+        # and gives the result to current function to find if there
+        # is(are) remaining bubble(s) to simplify.
+        graph = simplify_bubbles(solve_bubble(graph, common, onenode))
 
     return graph
 
@@ -606,7 +618,7 @@ def main():
 # Bene tests (Chabname's idea)
 #==============================================================
 
-def main_test(current=5):
+def main_test(current=6):
 
     if current == 1:
         kmer_reader = cut_kmer("TCAGA", 3)
@@ -649,6 +661,11 @@ def main_test(current=5):
         print(f"{len(somepaths)} nodes to remove")
         graph = remove_paths(graph, somepaths, True, True)
         print(f"new graph: {graph}")
+
+    if current == 6:
+        print(f"graph status before: {graph}")
+        graph = simplify_bubbles(graph)
+        print("Simplify_bubbles ends")
 
 
 if __name__ == '__main__':
