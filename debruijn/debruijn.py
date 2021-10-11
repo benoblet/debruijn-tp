@@ -23,8 +23,9 @@ import os
 import sys
 import random
 import statistics
-import matplotlib
+import pickle
 # Third, global packages with nicknames
+import matplotlib.pyplot as plt
 import networkx as nx
 # Forth, peculiar points
 random.seed(9001)
@@ -72,6 +73,8 @@ def get_arguments():
                         help="Output contigs in fasta file")
     parser.add_argument('-f', dest='graphimg_file', type=str,
                         help="Save graph as image (png)")
+    parser.add_argument('-b', dest='graph_file', type=str,
+                        help="Save graph as binary data (dat)")
     return parser.parse_args()
 
 
@@ -317,7 +320,7 @@ def select_best_path(graph, path_list, path_length, weight_avg_list,
                     break
         else:
             # Let's pick up one randomly, start and stop includ
-            best_one = path_list[randint(0, len(path_list))]
+            best_one = itemgetter(randint(0, len(path_list)))(path_list)
 
     # remove chosen_one from list and delete all others
     path_list.remove(best_one)
@@ -353,7 +356,8 @@ def path_average_weight(graph, path):
 
 
 def solve_bubble(graph, ancestor_node, descendant_node):
-    """Remove given paths from a graph.
+    """Identify bubble and remove multiple paths.
+    See select_best_path for path selection choice.
 
     Parameters
     ----------
@@ -397,7 +401,7 @@ def simplify_bubbles(graph):
     Returns
     -------
     graph: networkx weighted DiGraph
-        Input graph with only no multiple paths.
+        Input graph with no multiple paths between two nodes.
     """
     bubble = False
     #print(f"graph nodes length: {len(graph.nodes)}")
@@ -447,12 +451,126 @@ def simplify_bubbles(graph):
 
 
 def solve_entry_tips(graph, starting_nodes):
-    # to remove pytest big error
+    """Remove multiple entries from a graph.
+    See function select_best_path for more details on made choices.
+
+    Parameters
+    ----------
+    graph: networkx weighted DiGraph
+        A network built by a function such as upper
+        build_graph() function.
+    starting_nodes: list
+        List of nodes know to have no ancestor, thus starting a new
+        contig sequence. Several are not expected to exist on a same
+        sequence. Graph may nonetheless be composed of several
+        sequences.
+
+    Returns
+    -------
+    graph: networkx weighted DiGraph
+        Input graph with only one start per sequence.
+    """
+    severalentries = False
+
+    for node in graph.nodes:
+        #print(f"current node: {node}")
+        predecessors = list(graph.predecessors(node))
+        if len(predecessors) <= 1:
+            continue
+        severalentries = True
+
+        availablepath = []
+        # Let's identify associated paths
+        for entrynode in starting_nodes:
+            print(f"entry node: {entrynode}")
+            # Identify path between the two nodes
+            if not nx.has_path(graph, entrynode, node):
+                print("no path between them")
+                continue
+            for path in nx.all_simple_paths(graph, entrynode, node):
+                availablepath.append(path)
+
+        # Prepare required lists to make later choice
+        #print(f"{len(availablepath)} availables path(s)")
+        availablelength = [len(path) for path in availablepath]
+        availableweight = [path_average_weight(graph, path)
+                                     for path in availablepath]
+        #print(f"paths: {availablepath}")
+        #print(f"lengths: {availablelength}")
+        #print(f"weights: {availableweight}")
+
+        # Stop looking for others, there is a issue to solve first
+        break
+
+    if severalentries:
+        #print(f"entry node list: {starting_nodes}")
+        # Perform graph cleaning for node we found and update entry list
+        graph = select_best_path(graph, availablepath,
+                                 availablelength, availableweight,
+                                 delete_entry_node = True,
+                                 delete_sink_node = False)
+        actualized_starting_nodes = get_starting_nodes(graph)
+        #print(f"actualized entry node list: {actualized_starting_nodes}")
+        # Check there is no more several paths
+        graph = solve_entry_tips(graph, actualized_starting_nodes)
+
     return graph
 
 
 def solve_out_tips(graph, ending_nodes):
-    # to remove pytest big error
+    """Remove multiple sink paths from a graph.
+    See function select_best_path for more details on made choices.
+
+    Parameters
+    ----------
+    graph: networkx weighted DiGraph
+        A network built by a function such as upper
+        build_graph() function.
+    ending_nodes: list
+        List of nodes know to have no successor, thus ending a
+        contig sequence. Several are not expected to exist on a
+        same sequence. Graph may nonetheless be composed of several
+        sequences.
+
+    Returns
+    -------
+    graph: networkx weighted DiGraph
+        Input graph with only one start per sequence.
+    """
+    severalexits = False
+
+    for node in graph.nodes:
+        successors = list(graph.successors(node))
+        if len(successors) <= 1:
+            continue
+        severalexits = True
+
+        availablepath = []
+        # Let's identify associated paths
+        for sinknode in ending_nodes:
+            # Identify path between the two nodes
+            if not nx.has_path(graph, node, sinknode):
+                continue
+            for path in nx.all_simple_paths(graph, node, sinknode):
+                availablepath.append(path)
+
+        # Prepare required lists to make later choice
+        availablelength = [len(path) for path in availablepath]
+        availableweight = [path_average_weight(graph, path)
+                                     for path in availablepath]
+        # Stop looking for others, there is a issue to solve first
+        break
+
+    if severalexits:
+        # Perform graph cleaning for node we found and update entry list
+        graph = select_best_path(graph, availablepath,
+                                 availablelength, availableweight,
+                                 delete_entry_node = False,
+                                 delete_sink_node = True)
+        actualized_ending_nodes = get_sink_nodes(graph)
+        # Check there is no more several paths
+        graph = solve_out_tips(graph, actualized_ending_nodes)
+
     return graph
 
 
@@ -522,12 +640,11 @@ def get_contigs(graph, starting_nodes, ending_nodes):
         #print(f"has path : {nx.has_path(graph, starting, ending)}")
         if not nx.has_path(graph, starting, ending):
             continue
-        else:
-            for singlepath in nx.all_simple_paths(graph, starting, ending):
-                currentig = singlepath[0]
-                for follower in singlepath[1:]:
-                    currentig += follower[-1]
-                my_contigs.append((currentig, len(currentig)))
+        for singlepath in nx.all_simple_paths(graph, starting, ending):
+            currentig = singlepath[0]
+            for follower in singlepath[1:]:
+                currentig += follower[-1]
+            my_contigs.append((currentig, len(currentig)))
     return my_contigs
 
 
@@ -535,9 +652,9 @@ def save_contigs(contigs_list, output_file):
     """Saved contigs in fasta format file.
 
     Exact format:
-    >contig_1 len=longueur du contig
+    >contig_0 len=longueur du contig
     Sequence..
-    >contig_2 len=longueur du contig
+    >contig_1 len=longueur du contig
     Sequence.
 
     Parameters
@@ -562,14 +679,15 @@ def save_contigs(contigs_list, output_file):
 
 
 def fill(text, width=80):
-    """Split text with a line return to respect fasta format"""
+    """Split text with a line return to respect fasta format
+    """
     return os.linesep.join(text[i:i+width] for i in range(0, len(text), width))
 
 
 def draw_graph(graph, graphimg_file):
     """Draw the graph
     """
-    fig, ax = plt.subplots()
+    plt.subplots() # removed, 'fig, ax =' indeed  not used
     elarge = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] > 3]
     #print(elarge)
     esmall = [(u, v) for (u, v, d) in graph.edges(data=True) if d['weight'] <= 3]
@@ -603,23 +721,54 @@ def main():
     # Get arguments
     args = get_arguments()
 
+    ledico = build_kmer_dict(args.fastq_file, args.kmer_size)
+    graph = build_graph(ledico)
+
     # Fonctions de dessin du graphe
     # A decommenter si vous souhaitez visualiser un petit
     # graphe
     # Plot the graph
-    # if args.graphimg_file:
-    #     draw_graph(graph, args.graphimg_file)
+    if args.graphimg_file:
+        draw_graph(graph, args.graphimg_file)
     # Save the graph in file
-    # if args.graph_file:
-    #     save_graph(graph, args.graph_file)
+    if args.graph_file:
+        save_graph(graph, args.graph_file)
+
+    # Remove internal issues
+    graph = simplify_bubbles(graph)
+
+    # Remove outer issues
+    begins = get_starting_nodes(graph)
+    endings = get_sink_nodes(graph)
+
+    # Clean graph
+    graph = simplify_bubbles(graph)
+    graph = solve_entry_tips(graph, begins)
+    graph = solve_out_tips(graph, endings)
+    # Update lists
+    begins = get_starting_nodes(graph)
+    endings = get_sink_nodes(graph)
+
+    # Identify valid contig(s)
+    my_contigs = get_contigs(graph, begins, endings)
+    save_contigs(my_contigs, args.output_file)
 
 
 #==============================================================
 # Bene tests (Chabname's idea)
 #==============================================================
 
-def main_test(current=6):
+def main_test(current=7):
+    """
+    Lines used to solve see Python errors and solve issues while
+    building functions.
 
+    Parameters
+    current: integer
+        To easily activate a test and keep record of previously
+        done to remember them and/or needed after.
+    ----------
+    """
     if current == 1:
         kmer_reader = cut_kmer("TCAGA", 3)
         for element in kmer_reader:
@@ -666,6 +815,31 @@ def main_test(current=6):
         print(f"graph status before: {graph}")
         graph = simplify_bubbles(graph)
         print("Simplify_bubbles ends")
+
+    if current == 7:
+        graph_1 = nx.DiGraph()
+        graph_1.add_weighted_edges_from([(1, 2, 10), (3, 2, 2), (2, 4, 15), (4, 5, 15)])
+        print(f"graph1 status before: {graph_1}")
+        print(f"Graph nodes: {graph_1.nodes}")
+        graph_1 = solve_entry_tips(graph_1, [1, 3])
+        print(f"graph1 status after: {graph_1}")
+        print(f"Graph nodes: {graph_1.nodes}")
+
+        graph_2 = nx.DiGraph()
+        graph_2.add_weighted_edges_from([(1, 2, 2), (6, 3, 2), (3, 2, 2),
+                                     (2, 4, 15), (4, 5, 15)])
+        print(f"graph2 status before: {graph_2}")
+        print(f"Graph nodes: {graph_2.nodes}")
+        graph_2 = solve_entry_tips(graph_2, [1, 6])
+        print(f"graph2 status after: {graph_2}")
+        print(f"Graph nodes: {graph_2.nodes}")
+
+        print("Solve_entry_tips ends")
+
+    if args.graphimg_file:
+        draw_graph(graph, args.graphimg_file)
+    if args.graph_file:
+        save_graph(graph, args.graph_file)
 
 
 if __name__ == '__main__':
